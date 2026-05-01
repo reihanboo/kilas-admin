@@ -105,7 +105,7 @@ type Issue struct {
 	ID            uint          `gorm:"primaryKey" json:"id"`
 	ReporterName  string        `gorm:"size:120;not null" json:"reporter_name"`
 	ReporterEmail string        `gorm:"size:255;not null" json:"reporter_email"`
-	TransactionID string        `gorm:"size:120;index;not null" json:"transaction_id"`
+	TransactionID string        `gorm:"size:120;index" json:"transaction_id"`
 	Category      string        `gorm:"size:120;not null" json:"category"`
 	Title         string        `gorm:"size:255;not null" json:"title"`
 	Description   string        `gorm:"type:text;not null" json:"description"`

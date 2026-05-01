@@ -28,6 +28,16 @@ func (s *AuthService) Login(email, password string) (*model.User, string, error)
 		return nil, "", err
 	}
 
+	if user.Role != "admin" {
+		return nil, "", errors.New("invalid credentials")
+	}
+	if user.Provider != "local" {
+		return nil, "", errors.New("invalid credentials")
+	}
+	if user.Password == "" {
+		return nil, "", errors.New("invalid credentials")
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return nil, "", errors.New("invalid credentials")
 	}

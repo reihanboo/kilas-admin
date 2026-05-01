@@ -11,42 +11,53 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
+var AdminDB *gorm.DB
+var KilasDB *gorm.DB
 
 func InitDB() {
-	dbName := os.Getenv("DATABASE_NAME")
-	if dbName == "" {
-		dbName = "kilas_admin_db"
-	}
-
 	dbHost := os.Getenv("DATABASE_HOST")
 	dbPort := os.Getenv("DATABASE_PORT")
 	dbUser := os.Getenv("DATABASE_USERNAME")
 	dbPass := os.Getenv("DATABASE_PASSWORD")
 
-	dsn := dbUser + ":" + dbPass + "@(" + dbHost + ":" + dbPort + ")/" + dbName + "?charset=utf8mb4&parseTime=True&loc=Local"
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatal("Error connecting to database: ", err)
+	adminDBName := "kilas_admin_db"
+	if customName := os.Getenv("DATABASE_NAME"); customName != "" && customName != adminDBName {
+		log.Fatal("DATABASE_NAME must be 'kilas_admin_db' for admin auth database")
 	}
 
-	DB = db
-	autoMigrate()
+	kilasDBName := os.Getenv("KILAS_DATABASE_NAME")
+	if kilasDBName == "" {
+		kilasDBName = "kilas_db"
+	}
+
+	adminDB, err := openDB(dbUser, dbPass, dbHost, dbPort, adminDBName)
+	if err != nil {
+		log.Fatal("Error connecting to admin database: ", err)
+	}
+	kilasDB, err := openDB(dbUser, dbPass, dbHost, dbPort, kilasDBName)
+	if err != nil {
+		log.Fatal("Error connecting to kilas database: ", err)
+	}
+
+	AdminDB = adminDB
+	KilasDB = kilasDB
+
+	autoMigrateAdminDB()
 	seedDefaultAdmin()
 }
 
-func autoMigrate() {
-	err := DB.AutoMigrate(
+func openDB(username, password, host, port, dbName string) (*gorm.DB, error) {
+	dsn := username + ":" + password + "@(" + host + ":" + port + ")/" + dbName + "?charset=utf8mb4&parseTime=True&loc=Local"
+	return gorm.Open(mysql.Open(dsn), &gorm.Config{})
+}
+
+func autoMigrateAdminDB() {
+	err := AdminDB.AutoMigrate(
 		&model.User{},
-		&model.Product{},
-		&model.Transaction{},
-		&model.Deck{},
-		&model.Card{},
-		&model.AIGenerationHistory{},
 		&model.Issue{},
 	)
 	if err != nil {
-		log.Fatal("Error migrating database: ", err)
+		log.Fatal("Error migrating admin database: ", err)
 	}
 }
 
@@ -63,7 +74,7 @@ func seedDefaultAdmin() {
 	}
 
 	var existing model.User
-	err := DB.Where("email = ?", email).First(&existing).Error
+	err := AdminDB.Where("email = ?", email).First(&existing).Error
 	if err == nil {
 		return
 	}
@@ -86,7 +97,7 @@ func seedDefaultAdmin() {
 		Provider: "local",
 	}
 
-	if err := DB.Create(&admin).Error; err != nil {
+	if err := AdminDB.Create(&admin).Error; err != nil {
 		log.Println("Error creating seeded admin user:", err)
 	}
 }

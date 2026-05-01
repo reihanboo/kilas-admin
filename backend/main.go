@@ -26,9 +26,9 @@ func main() {
 
 	database.InitDB()
 
-	authService := service.NewAuthService(database.DB)
-	issueService := service.NewIssueService(database.DB)
-	adminService := service.NewAdminCRUDService(database.DB)
+	authService := service.NewAuthService(database.AdminDB)
+	issueService := service.NewIssueService(database.AdminDB)
+	adminService := service.NewAdminCRUDService(database.KilasDB)
 	authHandler := handler.NewAuthHandler(authService)
 	issueHandler := handler.NewIssueHandler(issueService)
 	adminHandler := handler.NewAdminCRUDHandler(adminService)

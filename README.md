@@ -24,18 +24,23 @@ Simple admin dashboard/CMS for Kilas, built with Go (Gin + GORM) and React (Vite
 
 ## Database
 
-Backend uses its own database: `kilas_admin_db`.
+Backend uses two databases:
 
-Tables:
+- `kilas_admin_db` (admin DB):
+  - `users` (admin users that can login)
+  - `issues` (user-reported transaction issues)
 
-- `users`: admin users that can login to dashboard
-- `issues`: user-reported transaction issues
+- `kilas_db` (main Kilas app DB):
+  - `users`, `transactions`, `products`, `decks`, `cards`, `ai_generation_histories`
+  - used by `/api/admin/:entity` CRUD endpoints
 
 ## Backend Setup
 
 1. Copy env template:
    - `cp .env.example .env`
 2. Update DB and secrets in `.env`
+   - `DATABASE_NAME` must be `kilas_admin_db`
+   - `KILAS_DATABASE_NAME` should point to your main app DB (default `kilas_db`)
 3. Ensure MySQL database exists:
    - `CREATE DATABASE kilas_admin_db;`
 4. Run backend:
