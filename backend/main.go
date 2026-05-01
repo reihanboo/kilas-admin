@@ -28,7 +28,7 @@ func main() {
 
 	authService := service.NewAuthService(database.AdminDB)
 	issueService := service.NewIssueService(database.AdminDB)
-	adminService := service.NewAdminCRUDService(database.KilasDB)
+	adminService := service.NewAdminCRUDService(database.KilasDB, database.AdminDB)
 	authHandler := handler.NewAuthHandler(authService)
 	issueHandler := handler.NewIssueHandler(issueService)
 	adminHandler := handler.NewAdminCRUDHandler(adminService)

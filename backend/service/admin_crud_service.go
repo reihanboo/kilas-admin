@@ -12,7 +12,8 @@ import (
 )
 
 type AdminCRUDService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	adminDB *gorm.DB
 }
 
 type ListOptions struct {
@@ -35,8 +36,8 @@ type DashboardOverview struct {
 	RejectedIssues      int64 `json:"rejected_issues"`
 }
 
-func NewAdminCRUDService(db *gorm.DB) *AdminCRUDService {
-	return &AdminCRUDService{db: db}
+func NewAdminCRUDService(db *gorm.DB, adminDB *gorm.DB) *AdminCRUDService {
+	return &AdminCRUDService{db: db, adminDB: adminDB}
 }
 
 func (s *AdminCRUDService) Summary() (*DashboardOverview, error) {
@@ -59,19 +60,19 @@ func (s *AdminCRUDService) Summary() (*DashboardOverview, error) {
 	if err := s.db.Model(&model.AIGenerationHistory{}).Count(&o.AIGenerationHistory).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.Issue{}).Count(&o.Issues).Error; err != nil {
+	if err := s.adminDB.Model(&model.Issue{}).Count(&o.Issues).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.Issue{}).Where("status = ?", model.IssueStatusOpen).Count(&o.OpenIssues).Error; err != nil {
+	if err := s.adminDB.Model(&model.Issue{}).Where("status = ?", model.IssueStatusOpen).Count(&o.OpenIssues).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.Issue{}).Where("status = ?", model.IssueStatusInReview).Count(&o.InReviewIssues).Error; err != nil {
+	if err := s.adminDB.Model(&model.Issue{}).Where("status = ?", model.IssueStatusInReview).Count(&o.InReviewIssues).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.Issue{}).Where("status = ?", model.IssueStatusResolved).Count(&o.ResolvedIssues).Error; err != nil {
+	if err := s.adminDB.Model(&model.Issue{}).Where("status = ?", model.IssueStatusResolved).Count(&o.ResolvedIssues).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.Issue{}).Where("status = ?", model.IssueStatusRejected).Count(&o.RejectedIssues).Error; err != nil {
+	if err := s.adminDB.Model(&model.Issue{}).Where("status = ?", model.IssueStatusRejected).Count(&o.RejectedIssues).Error; err != nil {
 		return nil, err
 	}
 	return o, nil
@@ -84,7 +85,7 @@ func (s *AdminCRUDService) List(entity string, options ListOptions) (interface{}
 	}
 
 	list := cfg.newSlice()
-	query := s.db.Order("id DESC")
+	query := s.dbForEntity(entity).Order("id DESC")
 	for _, relation := range cfg.preloads {
 		query = query.Preload(relation)
 	}
@@ -129,7 +130,7 @@ func (s *AdminCRUDService) Get(entity string, id uint) (interface{}, error) {
 	}
 
 	obj := cfg.newModel()
-	query := s.db
+	query := s.dbForEntity(entity)
 	for _, relation := range cfg.preloads {
 		query = query.Preload(relation)
 	}
@@ -145,6 +146,8 @@ func (s *AdminCRUDService) Create(entity string, payload map[string]interface{})
 		return nil, err
 	}
 
+	targetDB := s.dbForEntity(entity)
+
 	cleanPayload, err := sanitizePayload(payload)
 	if err != nil {
 		return nil, err
@@ -152,12 +155,12 @@ func (s *AdminCRUDService) Create(entity string, payload map[string]interface{})
 	if err := cfg.beforeWrite(cleanPayload); err != nil {
 		return nil, err
 	}
-	if err := cfg.validateRelations(s.db, cleanPayload); err != nil {
+	if err := cfg.validateRelations(targetDB, cleanPayload); err != nil {
 		return nil, err
 	}
 
 	obj := cfg.newModel()
-	if err := s.db.Model(obj).Create(cleanPayload).Error; err != nil {
+	if err := targetDB.Model(obj).Create(cleanPayload).Error; err != nil {
 		return nil, err
 	}
 
@@ -170,8 +173,10 @@ func (s *AdminCRUDService) Update(entity string, id uint, payload map[string]int
 		return nil, err
 	}
 
+	targetDB := s.dbForEntity(entity)
+
 	obj := cfg.newModel()
-	if err := s.db.First(obj, id).Error; err != nil {
+	if err := targetDB.First(obj, id).Error; err != nil {
 		return nil, err
 	}
 
@@ -182,14 +187,14 @@ func (s *AdminCRUDService) Update(entity string, id uint, payload map[string]int
 	if err := cfg.beforeWrite(cleanPayload); err != nil {
 		return nil, err
 	}
-	if err := cfg.validateRelations(s.db, cleanPayload); err != nil {
+	if err := cfg.validateRelations(targetDB, cleanPayload); err != nil {
 		return nil, err
 	}
 
 	if len(cleanPayload) == 0 {
 		return s.Get(entity, id)
 	}
-	if err := s.db.Model(obj).Updates(cleanPayload).Error; err != nil {
+	if err := targetDB.Model(obj).Updates(cleanPayload).Error; err != nil {
 		return nil, err
 	}
 	return s.Get(entity, id)
@@ -201,7 +206,14 @@ func (s *AdminCRUDService) Delete(entity string, id uint) error {
 		return err
 	}
 	obj := cfg.newModel()
-	return s.db.Delete(obj, id).Error
+	return s.dbForEntity(entity).Delete(obj, id).Error
+}
+
+func (s *AdminCRUDService) dbForEntity(entity string) *gorm.DB {
+	if strings.EqualFold(entity, "issues") {
+		return s.adminDB
+	}
+	return s.db
 }
 
 type entityConfig struct {
