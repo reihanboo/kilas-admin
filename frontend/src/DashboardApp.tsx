@@ -35,6 +35,8 @@ import {
   DatabaseOutlined,
   FileTextOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   RobotOutlined,
   ShoppingOutlined,
   UserOutlined,
@@ -421,6 +423,20 @@ function App() {
   const [loginEmail, setLoginEmail] = useState("sekilas@kilas.my.id");
   const [loginPassword, setLoginPassword] = useState("admin12345");
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 576);
+  const [siderCollapsed, setSiderCollapsed] = useState(
+    () => window.innerWidth < 992,
+  );
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsMobile(window.innerWidth < 576);
+      setSiderCollapsed(window.innerWidth < 992);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const authHeaders = useMemo(
     () => ({
       Authorization: `Bearer ${token}`,
@@ -585,11 +601,15 @@ function App() {
         new Set(rows.map((r) => String(r[col] ?? "-"))),
       ).slice(0, 20);
 
+      const isLong =
+        col.includes("front") || col.includes("back") || col.includes("text");
+
       return {
         title: prettify(col),
         dataIndex: col,
         key: col,
         ellipsis: true,
+        width: col === "id" ? 80 : isLong ? 250 : 150,
         sorter: (a: RecordData, b: RecordData) =>
           String(a[col] ?? "").localeCompare(String(b[col] ?? ""), undefined, {
             numeric: true,
@@ -607,6 +627,7 @@ function App() {
         title: "Actions",
         key: "actions",
         fixed: "right" as const,
+        width: 120,
         render: (_: unknown, row: RecordData) => (
           <Space>
             <Button size="small" onClick={() => openEditDrawer(row)}>
@@ -624,7 +645,7 @@ function App() {
         ),
       },
     ];
-  }, [currentConfig.columns, rows]);
+  }, [currentConfig.columns, rows, handleDelete, openEditDrawer]);
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -828,7 +849,14 @@ function App() {
 
   return (
     <Layout className="dashboard-layout">
-      <Sider width={240} className="dashboard-sider">
+      <Sider
+        width={240}
+        className="dashboard-sider"
+        collapsible
+        collapsed={siderCollapsed}
+        trigger={null}
+        collapsedWidth={0}
+      >
         <div className="brand">
           <DatabaseOutlined />
           <span>Kilas Admin</span>
@@ -844,6 +872,7 @@ function App() {
             label: ENTITY_CONFIG[entity].label,
             onClick: () => {
               navigate(`/${entity}`);
+              if (window.innerWidth < 992) setSiderCollapsed(true);
             },
           }))}
         />
@@ -857,10 +886,24 @@ function App() {
         </Button>
       </Sider>
 
-      <Layout>
+      <Layout
+        style={{
+          marginLeft: isMobile ? 0 : siderCollapsed ? 0 : 240,
+          transition: "margin-left 0.2s ease-in-out",
+          minHeight: "100vh",
+        }}
+      >
         <Header className="dashboard-header" style={{ padding: "0 16px" }}>
+          <Button
+            type="text"
+            icon={
+              siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+            }
+            onClick={() => setSiderCollapsed((prev) => !prev)}
+            className="sider-toggle"
+          />
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Text type="secondary">Signed in as</Text>
+            {!isMobile && <Text type="secondary">Signed in as</Text>}
             <div className="header-user">
               {user.name} ({user.email})
             </div>
@@ -878,12 +921,12 @@ function App() {
           ) : null}
 
           <Row gutter={[12, 12]}>
-            <Col span={6}>
+            <Col xs={12} sm={12} md={6}>
               <Card>
                 <Statistic title="Users" value={overview?.users ?? 0} />
               </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={12} md={6}>
               <Card>
                 <Statistic
                   title="Transactions"
@@ -891,19 +934,19 @@ function App() {
                 />
               </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={12} md={6}>
               <Card>
                 <Statistic title="Products" value={overview?.products ?? 0} />
               </Card>
             </Col>
-            <Col span={6}>
+            <Col xs={12} sm={12} md={6}>
               <Card>
                 <Statistic title="Issues" value={overview?.issues ?? 0} />
               </Card>
             </Col>
           </Row>
 
-          <Card style={{ marginTop: 12 }}>
+          <Card style={{ marginTop: 12, maxWidth: "100%" }}>
             <div className="table-toolbar">
               <div>
                 <Title level={4} style={{ margin: 0 }}>
@@ -911,13 +954,13 @@ function App() {
                 </Title>
                 <Text type="secondary">You can search/filter/sort/edit</Text>
               </div>
-              <Space>
+              <Space wrap>
                 <Input.Search
                   allowClear
                   placeholder={`Search ${currentConfig.label.toLowerCase()} table`}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  style={{ width: 320 }}
+                  style={{ width: isMobile ? "100%" : 320 }}
                 />
                 <Button type="primary" onClick={openCreateDrawer}>
                   New
@@ -927,11 +970,18 @@ function App() {
 
             <Spin spinning={tableLoading}>
               <Table<RecordData>
-                rowKey={(row) => String(row.id ?? JSON.stringify(row))}
                 columns={tableColumns}
                 dataSource={filteredRows}
-                scroll={{ x: 1800 }}
-                pagination={{ pageSize: 10, showSizeChanger: true }}
+                rowKey={(row) => String(row.id ?? JSON.stringify(row))}
+                scroll={{ x: "max-content" }}
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: !isMobile,
+                  size: isMobile ? "small" : undefined,
+                  showTotal: isMobile
+                    ? undefined
+                    : (total, range) => `${range[0]}-${range[1]} of ${total}`,
+                }}
               />
             </Spin>
           </Card>
@@ -946,7 +996,7 @@ function App() {
             ? `Edit ${currentConfig.label}`
             : `Create ${currentConfig.label}`
         }
-        width={620}
+        width={isMobile ? "100%" : 620}
       >
         <Form form={form} layout="vertical" onFinish={() => handleSave(form)}>
           {currentConfig.fields.map((field) => {
